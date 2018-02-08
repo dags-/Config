@@ -19,7 +19,7 @@ public interface Node {
 
     CommentedConfigurationNode node();
 
-    default Node child(Object... path) {
+    default Node node(Object... path) {
         return create(node().getNode(path));
     }
 
