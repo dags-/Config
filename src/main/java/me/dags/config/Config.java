@@ -31,14 +31,20 @@ public interface Config extends Node {
         return must(Paths.get(path, children));
     }
 
+    static Config must(ConfigurationLoader<CommentedConfigurationNode> loader, String path, String... children) {
+        return must(loader, Paths.get(path, children));
+    }
+
     static Config must(Path path) {
         HoconConfigurationLoader loader = HoconConfigurationLoader.builder()
                 .setDefaultOptions(DEFAULT_OPTIONS)
                 .setPath(path)
                 .build();
+        return must(loader, path);
+    }
 
+    static Config must(ConfigurationLoader<CommentedConfigurationNode> loader, Path path) {
         CommentedConfigurationNode root = ConfigNode.read(loader);
-
         return new ConfigNode(loader, root, path);
     }
 }
