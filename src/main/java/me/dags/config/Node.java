@@ -1,5 +1,6 @@
 package me.dags.config;
 
+import com.google.common.reflect.TypeToken;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.commented.SimpleCommentedConfigurationNode;
 import ninja.leaping.configurate.objectmapping.ObjectMapper;
@@ -20,6 +21,46 @@ public interface Node {
 
     default Node child(Object... path) {
         return create(node().getNode(path));
+    }
+
+    default boolean get(boolean def) {
+        return node().getBoolean(def);
+    }
+
+    default float get(float def) {
+        return node().getFloat(def);
+    }
+
+    default double get(double def) {
+        return node().getDouble(def);
+    }
+
+    default int get(int def) {
+        return node().getInt(def);
+    }
+
+    default long get(long def) {
+        return node().getLong(def);
+    }
+
+    default String get(String def) {
+        return node().getString(def);
+    }
+
+    default <T> T get(TypeToken<T> token, T def) {
+        try {
+            return node().getValue(token, def);
+        } catch (ObjectMappingException e) {
+            return def;
+        }
+    }
+
+    default <T> T get(TypeToken<T> token, Supplier<T> def) {
+        try {
+            return node().getValue(token, def);
+        } catch (ObjectMappingException e) {
+            return def.get();
+        }
     }
 
     default boolean get(String key, boolean def) {
@@ -44,6 +85,22 @@ public interface Node {
 
     default String get(String key, String def) {
         return node().getNode(key).getString(def);
+    }
+
+    default <T> T get(String key, TypeToken<T> token, T def) {
+        try {
+            return node().getNode(key).getValue(token);
+        } catch (ObjectMappingException e) {
+            return def;
+        }
+    }
+
+    default <T> T get(String key, TypeToken<T> token, Supplier<T> def) {
+        try {
+            return node().getNode(key).getValue(token);
+        } catch (ObjectMappingException e) {
+            return def.get();
+        }
     }
 
     default Node set(String key, Object value) {
@@ -79,11 +136,27 @@ public interface Node {
     }
 
     default void add(Iterable<Node> elements) {
-        // todo
+        List<CommentedConfigurationNode> list = new ArrayList<>(node().getChildrenList());
+        for (Node child : elements) {
+            list.add(child.node());
+        }
+        node().setValue(list);
+    }
+
+    default String comment() {
+        return node().getComment().orElse("");
+    }
+
+    default void comment(String comment) {
+        node().setComment(comment);
     }
 
     default void clear() {
         node().setValue(null);
+    }
+
+    default boolean isEmpty() {
+        return node().getValue() == null || (!node().hasListChildren() && !node().hasMapChildren());
     }
 
     default List<Node> asList() {
@@ -95,6 +168,10 @@ public interface Node {
     default Map<Object, Node> asMap() {
         return node().getChildrenMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> new BasicNode(e.getValue())));
+    }
+
+    default <T> T bind(Class<T> type, T def) {
+        return bind(type, (Supplier<T>) () -> def);
     }
 
     default <T> T bind(Class<T> type, Supplier<T> def) {

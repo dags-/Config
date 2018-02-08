@@ -11,21 +11,15 @@ import java.nio.file.Path;
 /**
  * @author dags <dags@dags.me>
  */
-class ConfigNode implements Config {
+class ConfigNode extends BasicNode implements Config {
 
     private final ConfigurationLoader<CommentedConfigurationNode> loader;
-    private final CommentedConfigurationNode root;
     private final Path path;
 
     ConfigNode(ConfigurationLoader<CommentedConfigurationNode> loader, CommentedConfigurationNode root, Path path) {
+        super(root);
         this.loader = loader;
-        this.root = root;
         this.path = path;
-    }
-
-    @Override
-    public CommentedConfigurationNode node() {
-        return root;
     }
 
     @Override
@@ -38,12 +32,6 @@ class ConfigNode implements Config {
         return path;
     }
 
-    @Override
-    public String toString() {
-        Object value = node().getValue();
-        return value != null ? value.toString() : "empty";
-    }
-
     static CommentedConfigurationNode read(ConfigurationLoader<CommentedConfigurationNode> loader) {
         try {
             return loader.load();
@@ -52,12 +40,14 @@ class ConfigNode implements Config {
         }
     }
 
-    static void write(ConfigurationLoader<CommentedConfigurationNode> loader, ConfigurationNode node, Path path) {
+    static boolean write(ConfigurationLoader<CommentedConfigurationNode> loader, ConfigurationNode node, Path path) {
         try {
             mkdirs(path.getParent());
             loader.save(node);
+            return true;
         } catch (IOException e) {
             e.printStackTrace();
+            return false;
         }
     }
 
