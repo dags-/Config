@@ -1,0 +1,15 @@
+plugins {
+    id "java"
+}
+
+group "me.dags"
+version "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'ninja.leaping.configurate', name: 'configurate-core', version: '3.3'
+    compile group: 'ninja.leaping.configurate', name: 'configurate-hocon', version: '3.3'
+}
