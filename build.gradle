@@ -1,9 +1,10 @@
 plugins {
-    id "java"
+    id 'java'
+    id 'maven'
 }
 
-group "me.dags"
-version "1.0-SNAPSHOT"
+group 'me.dags'
+version '1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -12,4 +13,20 @@ repositories {
 dependencies {
     compile group: 'ninja.leaping.configurate', name: 'configurate-core', version: '3.3'
     compile group: 'ninja.leaping.configurate', name: 'configurate-hocon', version: '3.3'
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: 'http://127.0.0.1:8081/nexus/content/repositories/snapshots/') {
+                authentication(userName: System.getenv('maven_user'), password: System.getenv('maven_pass'))
+            }
+        }
+    }
+
+    pom {
+        groupId = project.group
+        version = project.version
+        artifactId = project.archivesBaseName
+    }
 }
