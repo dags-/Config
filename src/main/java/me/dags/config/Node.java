@@ -171,7 +171,23 @@ public interface Node {
     }
 
     default <T> T bind(Class<T> type, T def) {
-        return bind(type, (Supplier<T>) () -> def);
+        ObjectMapper<T> mapper;
+
+        try {
+            mapper = ObjectMapper.forClass(type);
+            try {
+                return mapper.bindToNew().populate(node());
+            } catch (ObjectMappingException e) {
+                if (def != null) {
+                    mapper.bind(def).serialize(node());
+                }
+                return def;
+            }
+        } catch (ObjectMappingException e) {
+            e.printStackTrace();
+        }
+
+        return def;
     }
 
     default <T> T bind(Class<T> type, Supplier<T> def) {

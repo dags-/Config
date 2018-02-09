@@ -5,8 +5,11 @@ import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
 import ninja.leaping.configurate.loader.ConfigurationLoader;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * @author dags <dags@dags.me>
@@ -46,5 +49,23 @@ public interface Config extends Node {
     static Config must(ConfigurationLoader<CommentedConfigurationNode> loader, Path path) {
         CommentedConfigurationNode root = ConfigNode.read(loader);
         return new ConfigNode(loader, root, path);
+    }
+
+    static Stream<Config> all(Path dir, String extension) {
+        try {
+            PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:*" + extension);
+            return Files.list(dir).filter(path -> matcher.matches(path.getFileName())).map(Config::must);
+        } catch (IOException e) {
+            return Stream.empty();
+        }
+    }
+
+    static <T> Optional<T> must(Path path, Class<T> type) {
+        T t = must(path).bind(type, (T) null);
+        return Optional.ofNullable(t);
+    }
+
+    static <T> Stream<T> all(Path dir, String extension, Class<T> type) {
+        return all(dir, extension).map(c -> c.bind(type, (T) null)).filter(Objects::nonNull);
     }
 }
