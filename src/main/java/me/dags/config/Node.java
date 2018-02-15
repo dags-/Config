@@ -1,6 +1,7 @@
 package me.dags.config;
 
 import com.google.common.reflect.TypeToken;
+import ninja.leaping.configurate.ConfigurationOptions;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.commented.SimpleCommentedConfigurationNode;
 import ninja.leaping.configurate.objectmapping.ObjectMapper;
@@ -9,177 +10,339 @@ import ninja.leaping.configurate.objectmapping.ObjectMappingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
  * @author dags <dags@dags.me>
  */
-public interface Node {
+public class Node {
 
-    CommentedConfigurationNode node();
+    static final ConfigurationOptions DEFAULT_OPTIONS = ConfigurationOptions.defaults().setShouldCopyDefaults(true);
 
-    default Node node(Object... path) {
-        return create(node().getNode(path));
+    private final CommentedConfigurationNode node;
+
+    Node(CommentedConfigurationNode node) {
+        this.node = node;
     }
 
-    default boolean get(boolean def) {
-        return node().getBoolean(def);
+    /**
+     * Get the ConfigurationNode backing this node
+     */
+    public CommentedConfigurationNode backing() {
+        return node;
     }
 
-    default float get(float def) {
-        return node().getFloat(def);
+    /**
+     * Get the child node at the path
+     */
+    public Node node(Object... path) {
+        return create(backing().getNode(path));
     }
 
-    default double get(double def) {
-        return node().getDouble(def);
+    /**
+     * Get the comment on this node
+     */
+    public String comment() {
+        return backing().getComment().orElse("");
     }
 
-    default int get(int def) {
-        return node().getInt(def);
+    /**
+     * Get the value of this node
+     */
+    public boolean get(boolean def) {
+        return backing().getBoolean(def);
     }
 
-    default long get(long def) {
-        return node().getLong(def);
+    /**
+     * Get the value of this node
+     */
+    public float get(float def) {
+        return backing().getFloat(def);
     }
 
-    default String get(String def) {
-        return node().getString(def);
+    /**
+     * Get the value of this node
+     */
+    public double get(double def) {
+        return backing().getDouble(def);
     }
 
-    default <T> T get(TypeToken<T> token, T def) {
+    /**
+     * Get the value of this node
+     */
+    public int get(int def) {
+        return backing().getInt(def);
+    }
+
+    /**
+     * Get the value of this node
+     */
+    public long get(long def) {
+        return backing().getLong(def);
+    }
+
+    /**
+     * Get the value of this node
+     */
+    public String get(String def) {
+        return backing().getString(def);
+    }
+
+    /**
+     * Get the value of this node
+     */
+    public <T> T get(Deserializable<T> def) {
+        return def.fromNode(this);
+    }
+
+    /**
+     * Get the value of this node
+     */
+    public <T> T get(TypeToken<T> token, T def) {
         try {
-            return node().getValue(token, def);
+            return backing().getValue(token, def);
         } catch (ObjectMappingException e) {
             return def;
         }
     }
 
-    default <T> T get(TypeToken<T> token, Supplier<T> def) {
+    /**
+     * Get the value of this node
+     */
+    public <T> T get(TypeToken<T> token, Supplier<T> def) {
         try {
-            return node().getValue(token, def);
+            return backing().getValue(token, def);
         } catch (ObjectMappingException e) {
             return def.get();
         }
     }
 
-    default boolean get(String key, boolean def) {
-        return node().getNode(key).getBoolean(def);
+    /**
+     * Get the named value of this node
+     */
+    public boolean get(String key, boolean def) {
+        return backing().getNode(key).getBoolean(def);
     }
 
-    default float get(String key, float def) {
-        return node().getNode(key).getFloat(def);
+    /**
+     * Get the named value of this node
+     */
+    public float get(String key, float def) {
+        return backing().getNode(key).getFloat(def);
     }
 
-    default double get(String key, double def) {
-        return node().getNode(key).getDouble(def);
+    /**
+     * Get the named value of this node
+     */
+    public double get(String key, double def) {
+        return backing().getNode(key).getDouble(def);
     }
 
-    default int get(String key, int def) {
-        return node().getNode(key).getInt(def);
+    /**
+     * Get the named value of this node
+     */
+    public int get(String key, int def) {
+        return backing().getNode(key).getInt(def);
     }
 
-    default long get(String key, long def) {
-        return node().getNode(key).getLong(def);
+    /**
+     * Get the named value of this node
+     */
+    public long get(String key, long def) {
+        return backing().getNode(key).getLong(def);
     }
 
-    default String get(String key, String def) {
-        return node().getNode(key).getString(def);
+    /**
+     * Get the named value of this node
+     */
+    public String get(String key, String def) {
+        return backing().getNode(key).getString(def);
     }
 
-    default <T> T get(String key, TypeToken<T> token, T def) {
+    /**
+     * Get the named value of this node
+     */
+    public <T> T get(String key, Deserializable<T> def) {
+        return node(key).get(def);
+    }
+
+    /**
+     * Get the named value of this node
+     */
+    public <T> T get(String key, TypeToken<T> token, T def) {
         try {
-            return node().getNode(key).getValue(token);
+            return backing().getNode(key).getValue(token);
         } catch (ObjectMappingException e) {
             return def;
         }
     }
 
-    default <T> T get(String key, TypeToken<T> token, Supplier<T> def) {
+    /**
+     * Get the named value of this node
+     */
+    public <T> T get(String key, TypeToken<T> token, Supplier<T> def) {
         try {
-            return node().getNode(key).getValue(token);
+            return backing().getNode(key).getValue(token);
         } catch (ObjectMappingException e) {
             return def.get();
         }
     }
 
-    default Node set(String key, Object value) {
-        node().getNode(key).setValue(value);
-        return this;
-    }
-
-    default Node set(Object value) {
-        node().setValue(value);
-        return this;
-    }
-
-    default Node set(List<Node> values) {
-        List<CommentedConfigurationNode> list = values.stream().map(Node::node)
+    /**
+     *  Get a List view of the node's children
+     */
+    public List<Node> childList() {
+        return backing().getChildrenList().stream()
+                .map(Node::new)
                 .collect(Collectors.toList());
-        node().setValue(list);
+    }
+
+    /**
+     * Get a Map view of the node's children
+     */
+    public Map<Object, Node> childMap() {
+        return backing().getChildrenMap().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> new Node(e.getValue())));
+    }
+
+    /**
+     * Set the named value of this node
+     */
+    public Node set(String key, Object value) {
+        backing().getNode(key).setValue(value);
         return this;
     }
 
-    default Node set(Map<Object, Node> values) {
+    /**
+     * Set the named value of this node
+     */
+    public Node set(String key, Serializable value) {
+        value.toNode(node(key));
+        return this;
+    }
+
+    /**
+     * Set the value of this node
+     */
+    public Node set(Object value) {
+        backing().setValue(value);
+        return this;
+    }
+
+    /**
+     * Set the value of this node
+     */
+    public Node set(Serializable value) {
+        value.toNode(this);
+        return this;
+    }
+
+    /**
+     * Set the List of this List-backed node (replaces the current List)
+     */
+    public Node set(List<Node> values) {
+        List<CommentedConfigurationNode> list = values.stream().map(Node::backing)
+                .collect(Collectors.toList());
+        backing().setValue(list);
+        return this;
+    }
+
+    /**
+     * Set Map of this Map-backed node (replaces the current Map)
+     */
+    public Node set(Map<Object, Node> values) {
         Map<Object, CommentedConfigurationNode> map = values.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().node()));
-        node().setValue(map);
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().backing()));
+        backing().setValue(map);
         return this;
     }
 
-    default void add(Node... elements) {
-        List<CommentedConfigurationNode> list = new ArrayList<>(node().getChildrenList());
-        for (Node child : elements) {
-            list.add(child.node());
+    /**
+     * Add all elements to this List-backed node (adds to the current List)
+     */
+    public void addAll(Iterable<Serializable> elements) {
+        List<CommentedConfigurationNode> list = new ArrayList<>(backing().getChildrenList());
+        for (Serializable n : elements) {
+            Node node = create();
+            n.toNode(node);
+            list.add(node.backing());
         }
-        node().setValue(list);
+        backing().setValue(list);
     }
 
-    default void add(Iterable<Node> elements) {
-        List<CommentedConfigurationNode> list = new ArrayList<>(node().getChildrenList());
+    /**
+     * Add all elements to this List-backed node (adds to the current List)
+     */
+    public void addAllNodes(Iterable<Node> elements) {
+        List<CommentedConfigurationNode> list = new ArrayList<>(backing().getChildrenList());
         for (Node child : elements) {
-            list.add(child.node());
+            list.add(child.backing());
         }
-        node().setValue(list);
+        backing().setValue(list);
     }
 
-    default String comment() {
-        return node().getComment().orElse("");
+    /**
+     * Set the comment on this node
+     */
+    public void comment(String comment) {
+        backing().setComment(comment);
     }
 
-    default void comment(String comment) {
-        node().setComment(comment);
+    /**
+     * Clear the value on this node
+     */
+    public void clear() {
+        backing().setValue(null);
     }
 
-    default void clear() {
-        node().setValue(null);
+    /**
+     * Check if the node value is null/empty
+     */
+    public boolean isEmpty() {
+        return backing().getValue() == null || (!backing().hasListChildren() && !backing().hasMapChildren());
     }
 
-    default boolean isEmpty() {
-        return node().getValue() == null || (!node().hasListChildren() && !node().hasMapChildren());
+    /**
+     * Iterate over the node's list or map values
+     */
+    public void iterate(Consumer<Node> consumer) {
+        if (backing().hasListChildren()) {
+            backing().getChildrenList().stream().map(Node::new).forEach(consumer);
+        }
+        if (backing().hasMapChildren()) {
+            backing().getChildrenMap().values().stream().map(Node::new).forEach(consumer);
+        }
     }
 
-    default List<Node> asList() {
-        return node().getChildrenList().stream()
-                .map(BasicNode::new)
-                .collect(Collectors.toList());
+    /**
+     * Iterate over the node's key/value pairs
+     */
+    public void iterate(BiConsumer<Object, Node> consumer) {
+        if (backing().hasMapChildren()) {
+            backing().getChildrenMap().entrySet().forEach(entry -> {
+                Object key = entry.getKey();
+                Node node = new Node(entry.getValue());
+                consumer.accept(key, node);
+            });
+        }
     }
 
-    default Map<Object, Node> asMap() {
-        return node().getChildrenMap().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> new BasicNode(e.getValue())));
-    }
-
-    default <T> T bind(Class<T> type, T def) {
+    /**
+     * Instantiate and populate a new value of type T
+     */
+    public <T> T bind(Class<T> type, T def) {
         ObjectMapper<T> mapper;
 
         try {
             mapper = ObjectMapper.forClass(type);
             try {
-                return mapper.bindToNew().populate(node());
+                return mapper.bindToNew().populate(backing());
             } catch (ObjectMappingException e) {
                 if (def != null) {
-                    mapper.bind(def).serialize(node());
+                    mapper.bind(def).serialize(backing());
                 }
                 return def;
             }
@@ -190,16 +353,19 @@ public interface Node {
         return def;
     }
 
-    default <T> T bind(Class<T> type, Supplier<T> def) {
+    /**
+     * Instantiate and populate a new value of type T
+     */
+    public <T> T bind(Class<T> type, Supplier<T> def) {
         ObjectMapper<T> mapper;
 
         try {
             mapper = ObjectMapper.forClass(type);
             try {
-                return mapper.bindToNew().populate(node());
+                return mapper.bindToNew().populate(backing());
             } catch (ObjectMappingException e) {
                 T val = def.get();
-                mapper.bind(val).serialize(node());
+                mapper.bind(val).serialize(backing());
                 return val;
             }
         } catch (ObjectMappingException e) {
@@ -209,21 +375,72 @@ public interface Node {
         return def.get();
     }
 
-    default <T> boolean copy(T instance) {
+    /**
+     * Copy the given object to this node
+     */
+    public <T> boolean copy(T instance) {
         try {
             ObjectMapper<T>.BoundInstance mapper = ObjectMapper.forObject(instance);
-            mapper.serialize(node());
+            mapper.serialize(backing());
             return true;
         } catch (ObjectMappingException e) {
             return false;
         }
     }
 
-    static Node create() {
-        return new BasicNode(SimpleCommentedConfigurationNode.root(Config.DEFAULT_OPTIONS));
+    @Override
+    public String toString() {
+        Object value = backing().getValue();
+        return value != null ? value.toString() : "empty";
     }
 
-    static Node create(CommentedConfigurationNode node) {
-        return new BasicNode(node);
+    /**
+     * Create an empty Node
+     */
+    public static Node create() {
+        return create(SimpleCommentedConfigurationNode.root(DEFAULT_OPTIONS));
+    }
+
+    /**
+     * Create a new Node backed by the given CommentedConfigurationNode
+     */
+    public static Node create(CommentedConfigurationNode node) {
+        return new Node(node);
+    }
+
+    /**
+     * An object that can be represented in a Node tree
+     */
+    public interface Serializable {
+
+        /**
+         * Populates the Node with values held by the current instance
+         *
+         * @param node the Node to populate
+         */
+        void toNode(Node node);
+    }
+
+    /**
+     * An object that can be initialized/populated from a Node tree
+     */
+    public interface Deserializable<T> {
+
+        /**
+         * Returns an instance of T populated with values from the Node.
+         * May return a new instance.
+         *
+         * @param node the Node to populate T from
+         * @return instance of T (may be a new instance or the current one)
+         */
+        T fromNode(Node node);
+    }
+
+    /**
+     * A value that can be serialized and de-serialized to/from a Node
+     * @param <T> The serializable type
+     */
+    public interface Value<T> extends Deserializable<T>, Serializable {
+
     }
 }
