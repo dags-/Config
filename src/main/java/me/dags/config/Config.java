@@ -5,9 +5,13 @@ import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
 import ninja.leaping.configurate.loader.ConfigurationLoader;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
 /**
@@ -73,9 +77,11 @@ public class Config extends Node {
      * Creates the parent directories and file if necessary.
      */
     public static Config must(Path path) {
+        path = path.toAbsolutePath();
         HoconConfigurationLoader loader = HoconConfigurationLoader.builder()
                 .setDefaultOptions(DEFAULT_OPTIONS)
-                .setPath(path)
+                .setSource(reader(path))
+                .setSink(writer(path))
                 .build();
         return must(loader, path);
     }
@@ -97,6 +103,14 @@ public class Config extends Node {
      */
     public static <T> Stream<T> all(Path dir, String extension, Class<T> type) {
         return all(dir, extension).map(c -> c.bind(type, (T) null)).filter(Objects::nonNull);
+    }
+
+    private static Callable<BufferedWriter> writer(Path path) {
+        return () -> Files.newBufferedWriter(path, StandardCharsets.UTF_8);
+    }
+
+    private static Callable<BufferedReader> reader(Path path) {
+        return () -> Files.newBufferedReader(path, StandardCharsets.UTF_8);
     }
 
     private static Config must(ConfigurationLoader<CommentedConfigurationNode> loader, Path path) {
