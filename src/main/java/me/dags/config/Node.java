@@ -1,19 +1,21 @@
 package me.dags.config;
 
 import com.google.common.reflect.TypeToken;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import ninja.leaping.configurate.ConfigurationOptions;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.commented.SimpleCommentedConfigurationNode;
 import ninja.leaping.configurate.objectmapping.ObjectMapper;
 import ninja.leaping.configurate.objectmapping.ObjectMappingException;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * @author dags <dags@dags.me>
@@ -192,7 +194,41 @@ public class Node {
     }
 
     /**
-     *  Get a List view of the node's children
+     * Get the named List of T using the provided mapper function
+     */
+    public <T> List<T> getList(String key, Function<Node, T> mapper) {
+        return node(key).getList(mapper);
+    }
+
+    /**
+     * Get the List of T using the provided mapper function
+     */
+    public <T> List<T> getList(Function<Node, T> mapper) {
+        return backing().getChildrenList().stream().map(Node::new).map(mapper).collect(Collectors.toList());
+    }
+
+    /**
+     * Get the named Map of String/T pairs using the provided mapper function
+     */
+    public <T> Map<String, T> getMap(String key, Function<Node, T> mapper) {
+        return node(key).getMap(mapper);
+    }
+
+    /**
+     * Get the Map of String/T pairs using the provided mapper function
+     */
+    public <T> Map<String, T> getMap(Function<Node, T> mapper) {
+        return backing().getChildrenMap().entrySet().stream()
+                .map(e -> {
+                    String key = e.getKey().toString();
+                    T value = mapper.apply(new Node(e.getValue()));
+                    return new HashMap.SimpleEntry<>(key, value);
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    /**
+     * Get a List view of the node's children
      */
     public List<Node> childList() {
         return backing().getChildrenList().stream()
@@ -241,47 +277,148 @@ public class Node {
     }
 
     /**
-     * Set the List of this List-backed node (replaces the current List)
+     * Set the named Node's value to the given List
      */
-    public Node set(List<Node> values) {
-        List<CommentedConfigurationNode> list = values.stream().map(Node::backing)
-                .collect(Collectors.toList());
+    public Node set(String key, List<?> values) {
+        node(key).set(values);
+        return this;
+    }
+
+    /**
+     * Set this Node's value to the given List
+     */
+    public Node set(List<?> values) {
+        List<CommentedConfigurationNode> list = new ArrayList<>();
+        for (Object value : values) {
+            Node node;
+            if (value instanceof CommentedConfigurationNode) {
+                list.add((CommentedConfigurationNode) value);
+                continue;
+            }
+
+            if (value instanceof Node) {
+                node = (Node) value;
+            } else if (value instanceof Serializable) {
+                node = Node.create();
+                ((Serializable) value).toNode(node);
+            } else {
+                try {
+                    node = Node.create();
+                    node.set(value);
+                } catch (IllegalArgumentException iae) {
+                    continue;
+                }
+            }
+            list.add(node.backing());
+        }
         backing().setValue(list);
         return this;
     }
 
     /**
-     * Set Map of this Map-backed node (replaces the current Map)
+     * Set the named Node's value to the given Map
      */
-    public Node set(Map<Object, Node> values) {
-        Map<Object, CommentedConfigurationNode> map = values.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().backing()));
-        backing().setValue(map);
+    public Node set(String key, Map<Object, ?> map) {
+        node(key).set(map);
+        return this;
+    }
+
+    /**
+     * Set this Node's value to the given Map
+     */
+    public Node set(Map<Object, ?> map) {
+        Map<Object, CommentedConfigurationNode> newMap = new LinkedHashMap<>();
+
+        for (Map.Entry<Object, ?> e : map.entrySet()) {
+            Object key = e.getKey();
+            Object value = e.getValue();
+            if (value instanceof CommentedConfigurationNode) {
+                newMap.put(key, (CommentedConfigurationNode) value);
+                continue;
+            }
+
+            Node node;
+            if (value instanceof Node) {
+                node = (Node) value;
+            } else if (value instanceof Serializable) {
+                node = Node.create();
+                ((Serializable) value).toNode(node);
+            } else {
+                try {
+                    node = Node.create();
+                    node.set(value);
+                } catch (IllegalArgumentException iae) {
+                    continue;
+                }
+            }
+            newMap.put(key, node.backing());
+        }
+
+        backing().setValue(newMap);
         return this;
     }
 
     /**
      * Add all elements to this List-backed node (adds to the current List)
      */
-    public void addAll(Iterable<Serializable> elements) {
+    public void addAll(Iterable<?> elements) {
         List<CommentedConfigurationNode> list = new ArrayList<>(backing().getChildrenList());
-        for (Serializable n : elements) {
-            Node node = create();
-            n.toNode(node);
+        for (Object value : elements) {
+            Node node;
+            if (value instanceof CommentedConfigurationNode) {
+                list.add((CommentedConfigurationNode) value);
+                continue;
+            }
+
+            if (value instanceof Node) {
+                node = (Node) value;
+            } else if (value instanceof Serializable) {
+                node = Node.create();
+                ((Serializable) value).toNode(node);
+            } else {
+                try {
+                    node = Node.create();
+                    node.set(value);
+                } catch (IllegalArgumentException iae) {
+                    continue;
+                }
+            }
             list.add(node.backing());
         }
         backing().setValue(list);
     }
 
     /**
-     * Add all elements to this List-backed node (adds to the current List)
+     * Put all key/value elements to this Map-backed node (adds to the current Map)
      */
-    public void addAllNodes(Iterable<Node> elements) {
-        List<CommentedConfigurationNode> list = new ArrayList<>(backing().getChildrenList());
-        for (Node child : elements) {
-            list.add(child.backing());
+    public void putAll(Map<Object, ?> map) {
+        Map<Object, CommentedConfigurationNode> newMap = new HashMap<>(backing().getChildrenMap());
+        for (Map.Entry<Object, ?> e : map.entrySet()) {
+            Object key = e.getKey();
+            Object value = e.getValue();
+
+            if (value instanceof CommentedConfigurationNode) {
+                newMap.put(key, (CommentedConfigurationNode) value);
+                continue;
+            }
+
+            Node node;
+            if (value instanceof Node) {
+                node = (Node) value;
+            } else if (value instanceof Serializable) {
+                node = Node.create();
+                ((Serializable) value).toNode(node);
+            } else {
+                try {
+                    node = Node.create();
+                    node.set(value);
+                } catch (IllegalArgumentException iae) {
+                    continue;
+                }
+            }
+            newMap.put(key, node.backing());
         }
-        backing().setValue(list);
+        backing().setValue(newMap);
     }
 
     /**
@@ -296,6 +433,13 @@ public class Node {
      */
     public void clear() {
         backing().setValue(null);
+    }
+
+    /**
+     * Check if the node is attached to it's parent
+     */
+    public boolean isVirtual() {
+        return backing().isVirtual();
     }
 
     /**
@@ -322,9 +466,8 @@ public class Node {
      */
     public void iterate(BiConsumer<Object, Node> consumer) {
         if (backing().hasMapChildren()) {
-            backing().getChildrenMap().entrySet().forEach(entry -> {
-                Object key = entry.getKey();
-                Node node = new Node(entry.getValue());
+            backing().getChildrenMap().forEach((key, value) -> {
+                Node node = new Node(value);
                 consumer.accept(key, node);
             });
         }
@@ -438,6 +581,7 @@ public class Node {
 
     /**
      * A value that can be serialized and de-serialized to/from a Node
+     *
      * @param <T> The serializable type
      */
     public interface Value<T> extends Deserializable<T>, Serializable {
