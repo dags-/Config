@@ -23,7 +23,6 @@ uploadArchives {
             }
         }
     }
-
     pom {
         groupId = project.group
         version = project.version
