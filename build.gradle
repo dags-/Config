@@ -1,9 +1,10 @@
 plugins {
     id "java"
+    id "maven"
 }
 
 group "me.dags"
-version "1.0.3-SNAPSHOT"
+version "1.0.4-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -11,5 +12,9 @@ repositories {
 }
 
 dependencies {
-    implementation "ninja.leaping.configurate:configurate-hocon:3.4-SNAPSHOT"
+    compile "ninja.leaping.configurate:configurate-hocon:3.4-SNAPSHOT"
+}
+
+install.repositories.mavenInstaller.pom.whenConfigured { pom ->
+    pom.dependencies.removeAll { it.scope == "compile" }
 }
