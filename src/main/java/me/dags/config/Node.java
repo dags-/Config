@@ -1,21 +1,18 @@
 package me.dags.config;
 
 import com.google.common.reflect.TypeToken;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import ninja.leaping.configurate.ConfigurationOptions;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.commented.SimpleCommentedConfigurationNode;
 import ninja.leaping.configurate.objectmapping.ObjectMapper;
 import ninja.leaping.configurate.objectmapping.ObjectMappingException;
+
+import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * @author dags <dags@dags.me>
@@ -31,6 +28,36 @@ public class Node {
     }
 
     /**
+     * Add all elements to this List-backed node (adds to the current List)
+     */
+    public void addAll(Iterable<?> elements) {
+        List<CommentedConfigurationNode> list = new ArrayList<>(backing().getChildrenList());
+        for (Object value : elements) {
+            Node node;
+            if (value instanceof CommentedConfigurationNode) {
+                list.add((CommentedConfigurationNode) value);
+                continue;
+            }
+
+            if (value instanceof Node) {
+                node = (Node) value;
+            } else if (value instanceof Serializable) {
+                node = Node.create();
+                ((Serializable) value).toNode(node);
+            } else {
+                try {
+                    node = Node.create();
+                    node.set(value);
+                } catch (IllegalArgumentException iae) {
+                    continue;
+                }
+            }
+            list.add(node.backing());
+        }
+        backing().setValue(list);
+    }
+
+    /**
      * Get the ConfigurationNode backing this node
      */
     public CommentedConfigurationNode backing() {
@@ -38,10 +65,72 @@ public class Node {
     }
 
     /**
-     * Get the child node at the path
+     * Instantiate and populate a new value of type T
      */
-    public Node node(Object... path) {
-        return create(backing().getNode(path));
+    public <T> T bind(Class<T> type, T def) {
+        ObjectMapper<T> mapper;
+
+        try {
+            mapper = ObjectMapper.forClass(type);
+            try {
+                return mapper.bindToNew().populate(backing());
+            } catch (ObjectMappingException e) {
+                if (def != null) {
+                    mapper.bind(def).serialize(backing());
+                }
+                return def;
+            }
+        } catch (ObjectMappingException e) {
+            e.printStackTrace();
+        }
+
+        return def;
+    }
+
+    /**
+     * Instantiate and populate a new value of type T
+     */
+    public <T> T bind(Class<T> type, Supplier<T> def) {
+        ObjectMapper<T> mapper;
+
+        try {
+            mapper = ObjectMapper.forClass(type);
+            try {
+                return mapper.bindToNew().populate(backing());
+            } catch (ObjectMappingException e) {
+                T val = def.get();
+                mapper.bind(val).serialize(backing());
+                return val;
+            }
+        } catch (ObjectMappingException e) {
+            e.printStackTrace();
+        }
+
+        return def.get();
+    }
+
+    /**
+     * Get a List view of the node's children
+     */
+    public List<Node> childList() {
+        return backing().getChildrenList().stream()
+                .map(Node::new)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get a Map view of the node's children
+     */
+    public Map<Object, Node> childMap() {
+        return backing().getChildrenMap().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> new Node(e.getValue())));
+    }
+
+    /**
+     * Clear the value on this node
+     */
+    public void clear() {
+        backing().setValue(null);
     }
 
     /**
@@ -49,6 +138,26 @@ public class Node {
      */
     public String comment() {
         return backing().getComment().orElse("");
+    }
+
+    /**
+     * Set the comment on this node
+     */
+    public void comment(String comment) {
+        backing().setComment(comment);
+    }
+
+    /**
+     * Copy the given object to this node
+     */
+    public <T> boolean copy(T instance) {
+        try {
+            ObjectMapper<T>.BoundInstance mapper = ObjectMapper.forObject(instance);
+            mapper.serialize(backing());
+            return true;
+        } catch (ObjectMappingException e) {
+            return false;
+        }
     }
 
     /**
@@ -204,7 +313,11 @@ public class Node {
      * Get the List of T using the provided mapper function
      */
     public <T> List<T> getList(Function<Node, T> mapper) {
-        return backing().getChildrenList().stream().map(Node::new).map(mapper).collect(Collectors.toList());
+        return backing().getList(n -> n, Collections::emptyList).stream()
+                .filter(Objects::nonNull)
+                .map(create()::set)
+                .map(mapper)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -228,20 +341,81 @@ public class Node {
     }
 
     /**
-     * Get a List view of the node's children
+     * Check if the node value is null/empty
      */
-    public List<Node> childList() {
-        return backing().getChildrenList().stream()
-                .map(Node::new)
-                .collect(Collectors.toList());
+    public boolean isEmpty() {
+        return backing().getValue() == null || (!backing().hasListChildren() && !backing().hasMapChildren());
     }
 
     /**
-     * Get a Map view of the node's children
+     * Check if the node is attached to it's parent
      */
-    public Map<Object, Node> childMap() {
-        return backing().getChildrenMap().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> new Node(e.getValue())));
+    public boolean isVirtual() {
+        return backing().isVirtual();
+    }
+
+    /**
+     * Iterate over the node's list or map values
+     */
+    public void iterate(Consumer<Node> consumer) {
+        if (backing().hasListChildren()) {
+            backing().getChildrenList().stream().map(Node::new).forEach(consumer);
+        }
+        if (backing().hasMapChildren()) {
+            backing().getChildrenMap().values().stream().map(Node::new).forEach(consumer);
+        }
+    }
+
+    /**
+     * Iterate over the node's key/value pairs
+     */
+    public void iterate(BiConsumer<Object, Node> consumer) {
+        if (backing().hasMapChildren()) {
+            backing().getChildrenMap().forEach((key, value) -> {
+                Node node = new Node(value);
+                consumer.accept(key, node);
+            });
+        }
+    }
+
+    /**
+     * Get the child node at the path
+     */
+    public Node node(Object... path) {
+        return create(backing().getNode(path));
+    }
+
+    /**
+     * Put all key/value elements to this Map-backed node (adds to the current Map)
+     */
+    public void putAll(Map<Object, ?> map) {
+        Map<Object, CommentedConfigurationNode> newMap = new HashMap<>(backing().getChildrenMap());
+        for (Map.Entry<Object, ?> e : map.entrySet()) {
+            Object key = e.getKey();
+            Object value = e.getValue();
+
+            if (value instanceof CommentedConfigurationNode) {
+                newMap.put(key, (CommentedConfigurationNode) value);
+                continue;
+            }
+
+            Node node;
+            if (value instanceof Node) {
+                node = (Node) value;
+            } else if (value instanceof Serializable) {
+                node = Node.create();
+                ((Serializable) value).toNode(node);
+            } else {
+                try {
+                    node = Node.create();
+                    node.set(value);
+                } catch (IllegalArgumentException iae) {
+                    continue;
+                }
+            }
+            newMap.put(key, node.backing());
+        }
+        backing().setValue(newMap);
     }
 
     /**
@@ -356,179 +530,6 @@ public class Node {
 
         backing().setValue(newMap);
         return this;
-    }
-
-    /**
-     * Add all elements to this List-backed node (adds to the current List)
-     */
-    public void addAll(Iterable<?> elements) {
-        List<CommentedConfigurationNode> list = new ArrayList<>(backing().getChildrenList());
-        for (Object value : elements) {
-            Node node;
-            if (value instanceof CommentedConfigurationNode) {
-                list.add((CommentedConfigurationNode) value);
-                continue;
-            }
-
-            if (value instanceof Node) {
-                node = (Node) value;
-            } else if (value instanceof Serializable) {
-                node = Node.create();
-                ((Serializable) value).toNode(node);
-            } else {
-                try {
-                    node = Node.create();
-                    node.set(value);
-                } catch (IllegalArgumentException iae) {
-                    continue;
-                }
-            }
-            list.add(node.backing());
-        }
-        backing().setValue(list);
-    }
-
-    /**
-     * Put all key/value elements to this Map-backed node (adds to the current Map)
-     */
-    public void putAll(Map<Object, ?> map) {
-        Map<Object, CommentedConfigurationNode> newMap = new HashMap<>(backing().getChildrenMap());
-        for (Map.Entry<Object, ?> e : map.entrySet()) {
-            Object key = e.getKey();
-            Object value = e.getValue();
-
-            if (value instanceof CommentedConfigurationNode) {
-                newMap.put(key, (CommentedConfigurationNode) value);
-                continue;
-            }
-
-            Node node;
-            if (value instanceof Node) {
-                node = (Node) value;
-            } else if (value instanceof Serializable) {
-                node = Node.create();
-                ((Serializable) value).toNode(node);
-            } else {
-                try {
-                    node = Node.create();
-                    node.set(value);
-                } catch (IllegalArgumentException iae) {
-                    continue;
-                }
-            }
-            newMap.put(key, node.backing());
-        }
-        backing().setValue(newMap);
-    }
-
-    /**
-     * Set the comment on this node
-     */
-    public void comment(String comment) {
-        backing().setComment(comment);
-    }
-
-    /**
-     * Clear the value on this node
-     */
-    public void clear() {
-        backing().setValue(null);
-    }
-
-    /**
-     * Check if the node is attached to it's parent
-     */
-    public boolean isVirtual() {
-        return backing().isVirtual();
-    }
-
-    /**
-     * Check if the node value is null/empty
-     */
-    public boolean isEmpty() {
-        return backing().getValue() == null || (!backing().hasListChildren() && !backing().hasMapChildren());
-    }
-
-    /**
-     * Iterate over the node's list or map values
-     */
-    public void iterate(Consumer<Node> consumer) {
-        if (backing().hasListChildren()) {
-            backing().getChildrenList().stream().map(Node::new).forEach(consumer);
-        }
-        if (backing().hasMapChildren()) {
-            backing().getChildrenMap().values().stream().map(Node::new).forEach(consumer);
-        }
-    }
-
-    /**
-     * Iterate over the node's key/value pairs
-     */
-    public void iterate(BiConsumer<Object, Node> consumer) {
-        if (backing().hasMapChildren()) {
-            backing().getChildrenMap().forEach((key, value) -> {
-                Node node = new Node(value);
-                consumer.accept(key, node);
-            });
-        }
-    }
-
-    /**
-     * Instantiate and populate a new value of type T
-     */
-    public <T> T bind(Class<T> type, T def) {
-        ObjectMapper<T> mapper;
-
-        try {
-            mapper = ObjectMapper.forClass(type);
-            try {
-                return mapper.bindToNew().populate(backing());
-            } catch (ObjectMappingException e) {
-                if (def != null) {
-                    mapper.bind(def).serialize(backing());
-                }
-                return def;
-            }
-        } catch (ObjectMappingException e) {
-            e.printStackTrace();
-        }
-
-        return def;
-    }
-
-    /**
-     * Instantiate and populate a new value of type T
-     */
-    public <T> T bind(Class<T> type, Supplier<T> def) {
-        ObjectMapper<T> mapper;
-
-        try {
-            mapper = ObjectMapper.forClass(type);
-            try {
-                return mapper.bindToNew().populate(backing());
-            } catch (ObjectMappingException e) {
-                T val = def.get();
-                mapper.bind(val).serialize(backing());
-                return val;
-            }
-        } catch (ObjectMappingException e) {
-            e.printStackTrace();
-        }
-
-        return def.get();
-    }
-
-    /**
-     * Copy the given object to this node
-     */
-    public <T> boolean copy(T instance) {
-        try {
-            ObjectMapper<T>.BoundInstance mapper = ObjectMapper.forObject(instance);
-            mapper.serialize(backing());
-            return true;
-        } catch (ObjectMappingException e) {
-            return false;
-        }
     }
 
     @Override

@@ -1,21 +1,18 @@
 package me.dags.config;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
-import java.util.Objects;
-import java.util.concurrent.Callable;
-import java.util.stream.Stream;
 import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
 import ninja.leaping.configurate.loader.ConfigurationLoader;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.stream.Stream;
 
 /**
  * @author dags <dags@dags.me>
@@ -32,13 +29,6 @@ public class Config extends Node {
     }
 
     /**
-     * The path where this config is loaded from and saved to
-     */
-    public Path path() {
-        return path;
-    }
-
-    /**
      * The configuration loader backing this config
      */
     public ConfigurationLoader<CommentedConfigurationNode> loader() {
@@ -46,10 +36,10 @@ public class Config extends Node {
     }
 
     /**
-     * Write the config to disk
+     * The path where this config is loaded from and saved to
      */
-    public boolean save() {
-        return write(loader(), backing(), path());
+    public Path path() {
+        return path;
     }
 
     /**
@@ -60,33 +50,21 @@ public class Config extends Node {
     }
 
     /**
-     * Loads or creates a new config from the given file path.
-     * Creates the parent directories and file if necessary.
+     * Write the config to disk
      */
-    public static Config must(String file, String... path) {
-        return must(Paths.get(file, path));
+    public boolean save() {
+        return write(loader(), backing(), path());
     }
 
     /**
-     * Loads or creates a new config from the file in the given directory.
-     * Creates the parent directories and file if necessary.
+     * Write the config to disk if it doesn't already exist
      */
-    public static Config must(Path dir, String file) {
-        return must(dir.resolve(file));
-    }
-
-    /**
-     * Loads or creates a new config from the given path.
-     * Creates the parent directories and file if necessary.
-     */
-    public static Config must(Path path) {
-        path = path.toAbsolutePath();
-        HoconConfigurationLoader loader = HoconConfigurationLoader.builder()
-                .setDefaultOptions(DEFAULT_OPTIONS)
-                .setSource(reader(path))
-                .setSink(writer(path))
-                .build();
-        return must(loader, path);
+    public boolean saveIfAbsent() {
+        Path path = path();
+        if (Files.exists(path)) {
+            return true;
+        }
+        return save();
     }
 
     /**
@@ -106,6 +84,36 @@ public class Config extends Node {
      */
     public static <T> Stream<T> all(Path dir, String extension, Class<T> type) {
         return all(dir, extension).map(c -> c.bind(type, (T) null)).filter(Objects::nonNull);
+    }
+
+    /**
+     * Loads or creates a new config from the given path.
+     * Creates the parent directories and file if necessary.
+     */
+    public static Config must(Path path) {
+        path = path.toAbsolutePath();
+        HoconConfigurationLoader loader = HoconConfigurationLoader.builder()
+                .setDefaultOptions(DEFAULT_OPTIONS)
+                .setSource(reader(path))
+                .setSink(writer(path))
+                .build();
+        return must(loader, path);
+    }
+
+    /**
+     * Loads or creates a new config from the given file path.
+     * Creates the parent directories and file if necessary.
+     */
+    public static Config must(String file, String... path) {
+        return must(Paths.get(file, path));
+    }
+
+    /**
+     * Loads or creates a new config from the file in the given directory.
+     * Creates the parent directories and file if necessary.
+     */
+    public static Config must(Path dir, String file) {
+        return must(dir.resolve(file));
     }
 
     private static Callable<BufferedWriter> writer(Path path) {
