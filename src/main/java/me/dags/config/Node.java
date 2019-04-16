@@ -21,10 +21,21 @@ public class Node {
 
     static final ConfigurationOptions DEFAULT_OPTIONS = ConfigurationOptions.defaults().setShouldCopyDefaults(true);
 
-    private final CommentedConfigurationNode node;
+    private CommentedConfigurationNode node;
 
     Node(CommentedConfigurationNode node) {
         this.node = node;
+    }
+
+    synchronized void setNode(CommentedConfigurationNode node) {
+        this.node = node;
+    }
+
+    /**
+     * Get the ConfigurationNode backing this node
+     */
+    public synchronized CommentedConfigurationNode backing() {
+        return node;
     }
 
     /**
@@ -55,13 +66,6 @@ public class Node {
             list.add(node.backing());
         }
         backing().setValue(list);
-    }
-
-    /**
-     * Get the ConfigurationNode backing this node
-     */
-    public CommentedConfigurationNode backing() {
-        return node;
     }
 
     /**
@@ -129,8 +133,9 @@ public class Node {
     /**
      * Clear the value on this node
      */
-    public void clear() {
+    public Node clear() {
         backing().setValue(null);
+        return this;
     }
 
     /**
@@ -143,8 +148,9 @@ public class Node {
     /**
      * Set the comment on this node
      */
-    public void comment(String comment) {
+    public Node comment(String comment) {
         backing().setComment(comment);
+        return this;
     }
 
     /**

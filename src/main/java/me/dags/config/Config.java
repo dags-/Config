@@ -46,7 +46,9 @@ public class Config extends Node {
      * Load a new instance of the config from disk
      */
     public Config reload() {
-        return must(path());
+        CommentedConfigurationNode node = read(loader);
+        setNode(node);
+        return this;
     }
 
     /**
