@@ -139,6 +139,14 @@ public class Node {
     }
 
     /**
+     * Clear the value the child node under the given path
+     */
+    public Node clear(Object... path) {
+        node(path).clear();
+        return this;
+    }
+
+    /**
      * Get the comment on this node
      */
     public String comment() {
@@ -382,6 +390,10 @@ public class Node {
                 consumer.accept(key, node);
             });
         }
+    }
+
+    public Node node(Object path) {
+        return create(backing().getNode(path));
     }
 
     /**

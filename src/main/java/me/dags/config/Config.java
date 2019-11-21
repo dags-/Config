@@ -4,6 +4,7 @@ import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
 import ninja.leaping.configurate.loader.ConfigurationLoader;
+import ninja.leaping.configurate.util.MapFactories;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -95,7 +96,7 @@ public class Config extends Node {
     public static Config must(Path path) {
         path = path.toAbsolutePath();
         HoconConfigurationLoader loader = HoconConfigurationLoader.builder()
-                .setDefaultOptions(DEFAULT_OPTIONS)
+                .setDefaultOptions(DEFAULT_OPTIONS.setMapFactory(MapFactories.insertionOrdered()))
                 .setSource(reader(path))
                 .setSink(writer(path))
                 .build();
