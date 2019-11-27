@@ -216,6 +216,21 @@ public class Node {
         return backing().getString(def);
     }
 
+    public <T extends Enum<T>> T get(T def) {
+        String value = backing().getString("");
+        for (Enum e : def.getClass().getEnumConstants()) {
+            if (e.name().equals(value)) {
+                return def.getDeclaringClass().cast(e);
+            }
+        }
+        return def;
+    }
+
+    public <T extends Enum<T>> T get(Class<T> type) {
+        String value = backing().getString("");
+        return Enum.valueOf(type, value);
+    }
+
     /**
      * Get the value of this node
      */
@@ -285,6 +300,14 @@ public class Node {
      */
     public String get(String key, String def) {
         return backing().getNode(key).getString(def);
+    }
+
+    public <T extends Enum<T>> T get(String key, T def) {
+        return node(key).get(def);
+    }
+
+    public <T extends Enum<T>> T get(String key, Class<T> type) {
+        return node(key).get(type);
     }
 
     /**
@@ -425,8 +448,7 @@ public class Node {
                 ((Serializable) value).toNode(node);
             } else {
                 try {
-                    node = Node.create();
-                    node.set(value);
+                    node = Node.create().set(value);
                 } catch (IllegalArgumentException iae) {
                     continue;
                 }
@@ -444,6 +466,11 @@ public class Node {
         return this;
     }
 
+    public <T extends Enum<T>> Node set(String key, T enumeration) {
+        backing().getNode(key).setValue(enumeration.toString());
+        return this;
+    }
+
     /**
      * Set the named value of this node
      */
@@ -457,6 +484,14 @@ public class Node {
      */
     public Node set(Object value) {
         backing().setValue(value);
+        return this;
+    }
+
+    /**
+     * Set the value of this node
+     */
+    public <T extends Enum<T>> Node set(T enumeration) {
+        backing().setValue(enumeration.toString());
         return this;
     }
 
@@ -480,7 +515,7 @@ public class Node {
      * Set this Node's value to the given List
      */
     public Node set(List<?> values) {
-        List<CommentedConfigurationNode> list = new ArrayList<>();
+        List<CommentedConfigurationNode> list = new ArrayList<>(values.size());
         for (Object value : values) {
             Node node;
             if (value instanceof CommentedConfigurationNode) {
@@ -495,8 +530,7 @@ public class Node {
                 ((Serializable) value).toNode(node);
             } else {
                 try {
-                    node = Node.create();
-                    node.set(value);
+                    node = Node.create().set(value);
                 } catch (IllegalArgumentException iae) {
                     continue;
                 }
